@@ -1,35 +1,74 @@
 import React from 'react';
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { supabase } from './supabaseClient'
+
+// Import your pages
+import Login from './pages/Login'
+import Signup from './pages/Signup'
+import Dashboard from './pages/Dashboard'
+import CRPanel from './pages/CRPanel'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Check current session
+    const getSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        setUser(session?.user || null)
+      } catch (error) {
+        console.error('Error getting session:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    getSession()
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user || null)
+      }
+    )
+
+    return () => subscription?.unsubscribe()
+  }, [])
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '100vh',
+        fontSize: '18px'
+      }}>
+        Loading...
+      </div>
+    )
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
+          <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/dashboard" />} />
+          
+          {/* Protected routes */}
+          <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
+          <Route path="/cr-panel" element={user ? <CRPanel /> : <Navigate to="/login" />} />
+          
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
+        </Routes>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </Router>
   )
 }
 
